@@ -32,6 +32,12 @@ function decrypt(text){
 }
 // END NodeJS Encryption with CBC
 
+function getParam(url_string, param = "bearer") {
+    const url = new URL(url_string);
+    var p = url.searchParams.get(param);
+    return p;
+}
+
 // example json obj
 const exObj = {
     id : 300,
@@ -43,12 +49,16 @@ const exObj = {
 const encJsonObj = encrypt(JSON.stringify(exObj));
 console.log("request with text exmaple: ", encJsonObj);
 
-
+let counter = 0;
 // route
 app.get('/', (request, response) => {
+    console.log("request made! count:", counter);
+    counter++;
+    // get original url from nginx
+    const originalUrl = request.headers["x-original-uri"];
 
     // get bearer
-    const bearer = request.param("bearer");
+    const bearer = getParam(`http://files.intelgenesis.io${originalUrl}`);
 
     // if no key reject access
     if(bearer == undefined) {
@@ -62,7 +72,7 @@ app.get('/', (request, response) => {
     try {
         obj = JSON.parse(decrypt(bearer));
     } catch (e) {
-        console.error(e);
+        // console.error(e);
         response.sendStatus(401);
         return;
     }
