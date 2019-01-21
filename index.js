@@ -1,10 +1,16 @@
 // imports
 const express = require('express');
 const crypto = require('crypto');
+var cookieParser = require('cookie-parser')
+
+// start app
+const app = express();
+// app middleware setup
+app.use(cookieParser())
 
 // constants
-const app = express();
 const port = 3000;
+const BASE_URL = "http://*";
 
 // encryption constants
 const ALGO = 'aes-256-cbc';
@@ -49,41 +55,55 @@ const exObj = {
 const encJsonObj = encrypt(JSON.stringify(exObj));
 console.log("request with text exmaple: ", encJsonObj);
 
-let counter = 0;
 // route
 app.get('/', (request, response) => {
-    console.log("request made! count:", counter);
-    counter++;
-    // get original url from nginx
-    const originalUrl = request.headers["x-original-uri"];
-
-    // get bearer
-    const bearer = getParam(`http://files.intelgenesis.io${originalUrl}`);
-
-    // if no key reject access
-    if(bearer == undefined) {
-        response.sendStatus(401);
-        return;
-    }
-
-    // try parse json from decryption
-    // on error deny access
-    let obj = null;
     try {
-        obj = JSON.parse(decrypt(bearer));
+        // console.log(request);
+
+        // get original url from nginx
+        const originalUrl = request.headers["x-original-uri"] || request.url;
+
+        // get bearer
+        let bearer = null;
+
+        if(bearer === null && request.cookies.bearer !== undefined) {
+            bearer = request.cookies.bearer;
+        }
+
+        // if bearer null get it from link
+        if(bearer === null) {
+            bearer = getParam(`${BASE_URL}${originalUrl}`);
+        }
+
+        // if no key reject access
+        if(bearer == undefined) {
+            response.sendStatus(401);
+            return;
+        }
+
+        // try parse json from decryption
+        // on error deny access
+        let obj = null;
+        try {
+            obj = JSON.parse(decrypt(bearer));
+        } catch (e) {
+            // console.error(e);
+            response.sendStatus(401);
+            return;
+        }
+
+        // check keys and time
+        if(obj.name == undefined) {
+            response.sendStatus(401);
+        }
+
+        // if all check are good allow access
+        response.sendStatus(200);
     } catch (e) {
-        // console.error(e);
-        response.sendStatus(401);
-        return;
-    }
-
-    // check keys and time
-    if(obj.name == undefined) {
+        console.log(e);
+        // if any other scenario return 401
         response.sendStatus(401);
     }
-
-    // if all check are good allow access
-    response.sendStatus(200);
 });
 
 app.listen(port, () => console.log(`Example app listening on port ${port}!`));
